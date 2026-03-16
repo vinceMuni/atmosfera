@@ -92,7 +92,7 @@ class AudioService : Service() {
             timer = Timer()
             timer?.schedule(object : TimerTask() {
                 override fun run() {
-                    stopSound()
+                    stopSound(requestStop = false)
                     stopSelf()
                 }
             }, minutes * 60 * 1000L)
