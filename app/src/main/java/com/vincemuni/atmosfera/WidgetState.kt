@@ -10,8 +10,9 @@ object WidgetState {
     private const val KEY_TIMER = "timer_minutes"
     private const val KEY_VOLUME = "volume"
     private const val KEY_SELECTED_SOUNDS = "selected_sounds"
+    private const val KEY_REMAINING_MINUTES = "remaining_minutes"
 
-    val ALL_SOUNDS = listOf("Rain", "Ocean", "Forest", "Wind", "Fireplace", "Thunderstorm", "White Noise", "Cafe")
+    val ALL_SOUNDS = listOf("Fan", "Hairdryer", "Strong Fan", "Cafe")
     val TIMER_OPTIONS = listOf(0, 15, 30, 60, 90) // 0 = infinite
 
     private fun prefs(context: Context): SharedPreferences =
@@ -53,7 +54,14 @@ object WidgetState {
         return sounds[getSoundIndex(context).coerceIn(0, sounds.size - 1)]
     }
 
+    fun getRemainingMinutes(context: Context): Int = prefs(context).getInt(KEY_REMAINING_MINUTES, -1)
+    fun setRemainingMinutes(context: Context, minutes: Int) {
+        prefs(context).edit().putInt(KEY_REMAINING_MINUTES, minutes).apply()
+    }
+
     fun getTimerLabel(context: Context): String {
+        val remaining = getRemainingMinutes(context)
+        if (remaining >= 0) return "⏱ ${remaining}m"
         val idx = getTimerIndex(context)
         val minutes = TIMER_OPTIONS.getOrElse(idx) { 0 }
         return if (minutes == 0) "∞" else "${minutes}m"

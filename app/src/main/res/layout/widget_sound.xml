@@ -17,10 +17,12 @@
         <TextView
             android:id="@+id/btn_prev"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:text="◀"
             android:textSize="22sp"
-            android:padding="8dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:gravity="center"
             android:textColor="#FFFFFF"/>
 
         <TextView
@@ -37,10 +39,12 @@
         <TextView
             android:id="@+id/btn_next"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:text="▶"
             android:textSize="22sp"
-            android:padding="8dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:gravity="center"
             android:textColor="#FFFFFF"/>
 
     </LinearLayout>
@@ -64,24 +68,43 @@
             android:textColor="#FFFFFF"
             android:padding="4dp"/>
 
-        <TextView
-            android:id="@+id/btn_timer"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:gravity="center"
-            android:text="∞"
-            android:textSize="16sp"
-            android:textColor="#CCFFFFFF"
-            android:padding="4dp"/>
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/btn_timer_clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⏰"
+                android:textSize="16sp"
+                android:padding="2dp"
+                android:textColor="#CCFFFFFF"/>
+
+            <TextView
+                android:id="@+id/btn_timer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="∞"
+                android:textSize="16sp"
+                android:textColor="#CCFFFFFF"
+                android:padding="4dp"/>
+
+        </LinearLayout>
 
         <TextView
             android:id="@+id/btn_vol_down"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:text="−"
             android:textSize="20sp"
-            android:padding="6dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="10dp"
+            android:gravity="center"
             android:textColor="#FFFFFF"/>
 
         <TextView
@@ -97,10 +120,12 @@
         <TextView
             android:id="@+id/btn_vol_up"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:text="+"
             android:textSize="20sp"
-            android:padding="6dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="14dp"
+            android:gravity="center"
             android:textColor="#FFFFFF"/>
 
     </LinearLayout>

@@ -2,7 +2,8 @@ package com.vincemuni.atmosfera
 
 import android.app.*
 import android.content.Intent
-import android.media.MediaPlayer
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.os.*
 import androidx.core.app.NotificationCompat
 import java.util.Timer
@@ -15,12 +16,17 @@ class AudioService : Service() {
         const val ACTION_STOP = "com.vincemuni.atmosfera.STOP"
         const val ACTION_VOL_UP = "com.vincemuni.atmosfera.VOL_UP"
         const val ACTION_VOL_DOWN = "com.vincemuni.atmosfera.VOL_DOWN"
+        const val ACTION_START_TIMER = "com.vincemuni.atmosfera.START_TIMER"
         const val CHANNEL_ID = "AtmosferaChannel"
         const val NOTIF_ID = 1
     }
 
-    private var mediaPlayer: MediaPlayer? = null
+    private var soundPool: SoundPool? = null
+    private var soundId: Int = 0
+    private var streamId: Int = 0
     private var timer: Timer? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var countdownRunnable: Runnable? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -35,42 +41,77 @@ class AudioService : Service() {
             ACTION_STOP -> stopSound()
             ACTION_VOL_UP -> adjustVolume(1)
             ACTION_VOL_DOWN -> adjustVolume(-1)
+            ACTION_START_TIMER -> scheduleTimer()
         }
         return START_NOT_STICKY
     }
 
     private fun playSound() {
-        stopSound()
+        // Must call startForeground() immediately after startForegroundService() - before any other logic
+        startForeground(NOTIF_ID, buildNotification())
+
+        // Cleanup previous SoundPool
+        timer?.cancel()
+        timer = null
+        soundPool?.stop(streamId)
+        soundPool?.release()
+        soundPool = null
+        soundId = 0
+        streamId = 0
+
         val soundName = WidgetState.getCurrentSoundName(this).lowercase().replace(" ", "_")
         val resId = resources.getIdentifier(soundName, "raw", packageName)
 
         if (resId != 0) {
             try {
-                mediaPlayer = MediaPlayer.create(this, resId)?.apply {
-                    isLooping = true
-                    val vol = WidgetState.getVolume(this@AudioService) / 10f
-                    setVolume(vol, vol)
-                    start()
+                val attributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+
+                soundPool = SoundPool.Builder()
+                    .setMaxStreams(1)
+                    .setAudioAttributes(attributes)
+                    .build()
+
+                soundPool?.setOnLoadCompleteListener { pool, sampleId, status ->
+                    if (status == 0) {
+                        val vol = WidgetState.getVolume(this) / 10f
+                        streamId = pool.play(sampleId, vol, vol, 1, -1, 1f)
+                        if (streamId != 0) {
+                            WidgetState.setPlaying(this, true)
+                            SoundWidgetProvider.updateAll(this)
+                        } else {
+                            stopSound(requestStop = false)
+                        }
+                    } else {
+                        stopSound(requestStop = false)
+                    }
+                }
+
+                soundId = soundPool?.load(this, resId, 1) ?: 0
+                if (soundId == 0) {
+                    stopSound(requestStop = false)
                 }
             } catch (e: Exception) {
-                // No audio file available; widget UI still updates
+                stopSound(requestStop = false)
             }
+        } else {
+            stopSound(requestStop = false)
         }
-
-        WidgetState.setPlaying(this, true)
-        startForeground(NOTIF_ID, buildNotification())
-        scheduleTimer()
-        SoundWidgetProvider.updateAll(this)
     }
 
     private fun stopSound(requestStop: Boolean = true) {
         timer?.cancel()
         timer = null
-        mediaPlayer?.apply {
-            if (isPlaying) stop()
-            release()
-        }
-        mediaPlayer = null
+        countdownRunnable?.let { handler.removeCallbacks(it) }
+        countdownRunnable = null
+        WidgetState.setRemainingMinutes(this, -1)
+        soundPool?.stop(streamId)
+        soundPool?.release()
+        soundPool = null
+        soundId = 0
+        streamId = 0
         WidgetState.setPlaying(this, false)
         stopForeground(STOP_FOREGROUND_REMOVE)
         if (requestStop) stopSelf()
@@ -81,7 +122,7 @@ class AudioService : Service() {
         val newVol = WidgetState.getVolume(this) + delta
         WidgetState.setVolume(this, newVol)
         val vol = WidgetState.getVolume(this) / 10f
-        mediaPlayer?.setVolume(vol, vol)
+        if (streamId != 0) soundPool?.setVolume(streamId, vol, vol)
         SoundWidgetProvider.updateAll(this)
     }
 
@@ -89,6 +130,9 @@ class AudioService : Service() {
         val timerIdx = WidgetState.getTimerIndex(this)
         val minutes = WidgetState.TIMER_OPTIONS.getOrElse(timerIdx) { 0 }
         if (minutes > 0) {
+            WidgetState.setRemainingMinutes(this, minutes)
+            SoundWidgetProvider.updateAll(this)
+            startCountdown(minutes)
             timer = Timer()
             timer?.schedule(object : TimerTask() {
                 override fun run() {
@@ -97,6 +141,22 @@ class AudioService : Service() {
                 }
             }, minutes * 60 * 1000L)
         }
+    }
+
+    private fun startCountdown(totalMinutes: Int) {
+        countdownRunnable?.let { handler.removeCallbacks(it) }
+        var remaining = totalMinutes - 1
+        fun tick() {
+            if (remaining > 0) {
+                WidgetState.setRemainingMinutes(this, remaining)
+                SoundWidgetProvider.updateAll(this)
+                remaining--
+                countdownRunnable = Runnable { tick() }
+                handler.postDelayed(countdownRunnable!!, 60_000L)
+            }
+        }
+        countdownRunnable = Runnable { tick() }
+        handler.postDelayed(countdownRunnable!!, 60_000L)
     }
 
     private fun buildNotification(): Notification {

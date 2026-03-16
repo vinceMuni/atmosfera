@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.view.View
 import android.widget.RemoteViews
 
 class SoundWidgetProvider : AppWidgetProvider() {
@@ -69,12 +70,13 @@ class SoundWidgetProvider : AppWidgetProvider() {
             }
             ACTION_PLAY_STOP -> {
                 val serviceIntent = Intent(context, AudioService::class.java)
-                serviceIntent.action = if (WidgetState.isPlaying(context)) {
-                    AudioService.ACTION_STOP
+                if (WidgetState.isPlaying(context)) {
+                    serviceIntent.action = AudioService.ACTION_STOP
+                    context.startService(serviceIntent)
                 } else {
-                    AudioService.ACTION_PLAY
+                    serviceIntent.action = AudioService.ACTION_PLAY
+                    context.startForegroundService(serviceIntent)
                 }
-                context.startService(serviceIntent)
             }
             ACTION_TIMER -> {
                 val nextIdx = (WidgetState.getTimerIndex(context) + 1) % WidgetState.TIMER_OPTIONS.size
@@ -124,6 +126,20 @@ class SoundWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.btn_timer, WidgetState.getTimerLabel(context))
         views.setOnClickPendingIntent(R.id.btn_timer, buildBroadcastPI(context, ACTION_TIMER, 4))
 
+        // Clock button: visible only when timer is set (not infinite), colored when active
+        val timerIdx = WidgetState.getTimerIndex(context)
+        val timerMinutes = WidgetState.TIMER_OPTIONS.getOrElse(timerIdx) { 0 }
+        val isTimerActive = WidgetState.getRemainingMinutes(context) >= 0
+        if (timerMinutes == 0 && !isTimerActive) {
+            // Infinite and not active: hide clock button
+            views.setViewVisibility(R.id.btn_timer_clock, View.GONE)
+        } else {
+            views.setViewVisibility(R.id.btn_timer_clock, View.VISIBLE)
+            val clockColor = if (isTimerActive) 0xFFFFFFFF.toInt() else 0x66FFFFFF.toInt()
+            views.setTextColor(R.id.btn_timer_clock, clockColor)
+        }
+        views.setOnClickPendingIntent(R.id.btn_timer_clock, buildServicePI(context, AudioService.ACTION_START_TIMER, 7))
+
         views.setTextViewText(R.id.tv_volume, "${WidgetState.getVolume(context)}")
         views.setOnClickPendingIntent(R.id.btn_vol_down, buildBroadcastPI(context, ACTION_VOL_DOWN, 5))
         views.setOnClickPendingIntent(R.id.btn_vol_up, buildBroadcastPI(context, ACTION_VOL_UP, 6))
@@ -134,6 +150,14 @@ class SoundWidgetProvider : AppWidgetProvider() {
     private fun buildBroadcastPI(context: Context, action: String, requestCode: Int): PendingIntent {
         val intent = Intent(context, SoundWidgetProvider::class.java).apply { this.action = action }
         return PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun buildServicePI(context: Context, action: String, requestCode: Int): PendingIntent {
+        val intent = Intent(context, AudioService::class.java).apply { this.action = action }
+        return PendingIntent.getService(
             context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
